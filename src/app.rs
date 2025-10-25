@@ -14,9 +14,7 @@ pub struct TemplateApp {
     quat: [(String, String); 4],
     angleaxis: [(String, String); 4],
     rot_matrix: [String; 9],
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
+    editted: bool,
 }
 
 impl Default for TemplateApp {
@@ -45,7 +43,7 @@ impl Default for TemplateApp {
                 "0.0".to_owned(),
                 "1.0".to_owned(),
             ],
-            value: 2.7,
+            editted: false,
         }
     }
 }
@@ -157,7 +155,10 @@ impl eframe::App for TemplateApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("Rotation tool");
+            ui.heading(format!(
+                "Rotation tool {}",
+                if self.editted { "(Unsync)" } else { "(Sync)" }
+            ));
             ui.separator();
 
             ui.label(egui::RichText::new("Quaternion:").heading());
@@ -178,6 +179,7 @@ impl eframe::App for TemplateApp {
                             {
                                 rotation_repr = Some(RotationRepr::Quaternion);
                             }
+                            self.editted = text_input_res.changed() || self.editted;
                         },
                     );
                 }
@@ -203,6 +205,7 @@ impl eframe::App for TemplateApp {
                             {
                                 rotation_repr = Some(RotationRepr::AngleAxis);
                             }
+                            self.editted = text_input_res.changed() || self.editted;
                         },
                     );
                 }
@@ -229,6 +232,7 @@ impl eframe::App for TemplateApp {
                                 {
                                     rotation_repr = Some(RotationRepr::RotationMatrix);
                                 }
+                                self.editted = text_input_res.changed() || self.editted;
                             }
                         },
                     );
@@ -243,6 +247,7 @@ impl eframe::App for TemplateApp {
         });
 
         if let Some(rotation_repr) = rotation_repr {
+            self.editted = false;
             match self.update_input(rotation_repr) {
                 Ok(_) => {}
                 Err(_) => {}
