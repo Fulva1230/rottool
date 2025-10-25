@@ -8,6 +8,7 @@ use nalgebra as na;
 pub struct TemplateApp {
     // Example stuff:
     quat: [(String, String); 4],
+    angleaxis: [(String, String); 4],
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
@@ -21,6 +22,12 @@ impl Default for TemplateApp {
                 ("Qx".to_owned(), "0.0".to_owned()),
                 ("Qy".to_owned(), "0.0".to_owned()),
                 ("Qz".to_owned(), "0.0".to_owned()),
+            ],
+            angleaxis: [
+                ("Angle (rad)".to_owned(), "0.0".to_owned()),
+                ("AxisX".to_owned(), "1.0".to_owned()),
+                ("AxisY".to_owned(), "0.0".to_owned()),
+                ("AxisZ".to_owned(), "0.0".to_owned()),
             ],
             value: 2.7,
         }
@@ -53,6 +60,18 @@ impl TemplateApp {
         self.quat[1].1 = format!("{:.4}", quat.i);
         self.quat[2].1 = format!("{:.4}", quat.j);
         self.quat[3].1 = format!("{:.4}", quat.k);
+        if let Some(angleaxis) = quat.axis_angle() {
+            self.angleaxis[0].1 = format!("{:.4}", angleaxis.1);
+            self.angleaxis[1].1 = format!("{:.4}", angleaxis.0.x);
+            self.angleaxis[2].1 = format!("{:.4}", angleaxis.0.y);
+            self.angleaxis[3].1 = format!("{:.4}", angleaxis.0.z);
+        } else {
+            self.angleaxis[0].1 = format!("{:.4}", 0.0);
+            self.angleaxis[1].1 = format!("{:.4}", 1.0);
+            self.angleaxis[2].1 = format!("{:.4}", 0.0);
+            self.angleaxis[3].1 = format!("{:.4}", 0.0);
+        }
+
         Ok(())
     }
 }
@@ -92,7 +111,9 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("Rotation tool");
+            ui.separator();
 
+            ui.label(egui::RichText::new("Quaternion:").heading());
             ui.separator();
 
             ui.horizontal(|ui| {
@@ -105,6 +126,31 @@ impl eframe::App for TemplateApp {
                         |ui| {
                             ui.label(&quat_e.0);
                             let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
+                            if text_input_res.lost_focus()
+                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                            {
+                                need_update = true;
+                            }
+                        },
+                    );
+                }
+            });
+            ui.separator();
+
+            ui.label(egui::RichText::new("Angle-axis:").heading());
+            ui.separator();
+
+            ui.horizontal(|ui| {
+                let element_width =
+                    (ui.available_width() - 3.0 * ui.spacing().item_spacing.x) / 4.0;
+                for angleaxis_e in self.angleaxis.iter_mut() {
+                    ui.allocate_ui_with_layout(
+                        egui::Vec2::new(element_width, 999999.9),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.label(&angleaxis_e.0);
+                            let text_input_res =
+                                ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
                             if text_input_res.lost_focus()
                                 && ui.input(|input| input.key_pressed(egui::Key::Enter))
                             {
