@@ -1,9 +1,13 @@
+use std::f32;
+
+use nalgebra as na;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
     // Example stuff:
-    label: String,
+    quat: [(String, String); 4],
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
@@ -12,8 +16,12 @@ pub struct TemplateApp {
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
+            quat: [
+                ("Qw".to_owned(), "1.0".to_owned()),
+                ("Qx".to_owned(), "0.0".to_owned()),
+                ("Qy".to_owned(), "0.0".to_owned()),
+                ("Qz".to_owned(), "0.0".to_owned()),
+            ],
             value: 2.7,
         }
     }
@@ -32,6 +40,20 @@ impl TemplateApp {
         } else {
             Default::default()
         }
+    }
+
+    fn update_input(&mut self) -> anyhow::Result<()> {
+        let quat = na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
+            self.quat[0].1.parse()?,
+            self.quat[1].1.parse()?,
+            self.quat[2].1.parse()?,
+            self.quat[3].1.parse()?,
+        ));
+        self.quat[0].1 = format!("{:.4}", quat.w);
+        self.quat[1].1 = format!("{:.4}", quat.i);
+        self.quat[2].1 = format!("{:.4}", quat.j);
+        self.quat[3].1 = format!("{:.4}", quat.k);
+        Ok(())
     }
 }
 
@@ -65,32 +87,45 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        let mut need_update = false;
+
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
-            }
+            ui.heading("Rotation tool");
 
             ui.separator();
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
+            ui.horizontal(|ui| {
+                let element_width =
+                    (ui.available_width() - 3.0 * ui.spacing().item_spacing.x) / 4.0;
+                for quat_e in self.quat.iter_mut() {
+                    ui.allocate_ui_with_layout(
+                        egui::Vec2::new(element_width, 999999.9),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            ui.label(&quat_e.0);
+                            let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
+                            if text_input_res.lost_focus()
+                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                            {
+                                need_update = true;
+                            }
+                        },
+                    );
+                }
+            });
+
+            ui.separator();
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
             });
         });
+
+        if need_update {
+            self.update_input();
+        }
     }
 }
 
