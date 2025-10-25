@@ -243,7 +243,10 @@ impl eframe::App for TemplateApp {
         });
 
         if let Some(rotation_repr) = rotation_repr {
-            self.update_input(rotation_repr);
+            match self.update_input(rotation_repr) {
+                Ok(_) => {}
+                Err(_) => {}
+            }
         }
     }
 }
