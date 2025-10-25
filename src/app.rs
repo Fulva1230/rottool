@@ -1,6 +1,10 @@
-use std::f32;
-
 use nalgebra as na;
+
+enum RotationRepr {
+    Quaternion,
+    AngleAxis,
+    RotationMatrix,
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -9,6 +13,7 @@ pub struct TemplateApp {
     // Example stuff:
     quat: [(String, String); 4],
     angleaxis: [(String, String); 4],
+    rot_matrix: [String; 9],
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
@@ -28,6 +33,17 @@ impl Default for TemplateApp {
                 ("AxisX".to_owned(), "1.0".to_owned()),
                 ("AxisY".to_owned(), "0.0".to_owned()),
                 ("AxisZ".to_owned(), "0.0".to_owned()),
+            ],
+            rot_matrix: [
+                "1.0".to_owned(),
+                "0.0".to_owned(),
+                "0.0".to_owned(),
+                "0.0".to_owned(),
+                "1.0".to_owned(),
+                "0.0".to_owned(),
+                "0.0".to_owned(),
+                "0.0".to_owned(),
+                "1.0".to_owned(),
             ],
             value: 2.7,
         }
@@ -49,13 +65,37 @@ impl TemplateApp {
         }
     }
 
-    fn update_input(&mut self) -> anyhow::Result<()> {
-        let quat = na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
-            self.quat[0].1.parse()?,
-            self.quat[1].1.parse()?,
-            self.quat[2].1.parse()?,
-            self.quat[3].1.parse()?,
-        ));
+    fn update_input(&mut self, edited_item: RotationRepr) -> anyhow::Result<()> {
+        let quat = match edited_item {
+            RotationRepr::Quaternion => {
+                na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
+                    self.quat[0].1.parse()?,
+                    self.quat[1].1.parse()?,
+                    self.quat[2].1.parse()?,
+                    self.quat[3].1.parse()?,
+                ))
+            }
+            RotationRepr::AngleAxis => {
+                let angle = self.angleaxis[0].1.parse()?;
+                let axis = na::UnitVector3::new_normalize(na::Vector3::new(
+                    self.angleaxis[1].1.parse()?,
+                    self.angleaxis[2].1.parse()?,
+                    self.angleaxis[3].1.parse()?,
+                ));
+                na::UnitQuaternion::from_axis_angle(&axis, angle)
+            }
+            RotationRepr::RotationMatrix => {
+                let mut matrix = na::Matrix3::from_iterator(
+                    self.rot_matrix
+                        .iter()
+                        .map(|e| e.parse::<f64>().unwrap_or(0.0)),
+                );
+                if matrix.rank(0.0001) < 3 {
+                    matrix = na::Matrix3::identity();
+                }
+                na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&matrix))
+            }
+        };
         self.quat[0].1 = format!("{:.4}", quat.w);
         self.quat[1].1 = format!("{:.4}", quat.i);
         self.quat[2].1 = format!("{:.4}", quat.j);
@@ -71,6 +111,13 @@ impl TemplateApp {
             self.angleaxis[2].1 = format!("{:.4}", 0.0);
             self.angleaxis[3].1 = format!("{:.4}", 0.0);
         }
+        quat.to_rotation_matrix()
+            .matrix()
+            .iter()
+            .enumerate()
+            .for_each(|(i, &x)| {
+                self.rot_matrix[i] = format!("{:.4}", x);
+            });
 
         Ok(())
     }
@@ -106,7 +153,7 @@ impl eframe::App for TemplateApp {
             });
         });
 
-        let mut need_update = false;
+        let mut rotation_repr = None;
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
@@ -129,7 +176,7 @@ impl eframe::App for TemplateApp {
                             if text_input_res.lost_focus()
                                 && ui.input(|input| input.key_pressed(egui::Key::Enter))
                             {
-                                need_update = true;
+                                rotation_repr = Some(RotationRepr::Quaternion);
                             }
                         },
                     );
@@ -154,13 +201,39 @@ impl eframe::App for TemplateApp {
                             if text_input_res.lost_focus()
                                 && ui.input(|input| input.key_pressed(egui::Key::Enter))
                             {
-                                need_update = true;
+                                rotation_repr = Some(RotationRepr::AngleAxis);
                             }
                         },
                     );
                 }
             });
+            ui.separator();
 
+            ui.label(egui::RichText::new("Rotation matrix:").heading());
+            ui.separator();
+
+            ui.horizontal(|ui| {
+                let element_width =
+                    (ui.available_width() - 2.0 * ui.spacing().item_spacing.x) / 3.0;
+                for col in 0..3 {
+                    ui.allocate_ui_with_layout(
+                        egui::Vec2::new(element_width, 999999.9),
+                        egui::Layout::top_down(egui::Align::LEFT),
+                        |ui| {
+                            for row in 0..3 {
+                                let text_input_res = ui.add(egui::TextEdit::singleline(
+                                    &mut self.rot_matrix[3 * col + row],
+                                ));
+                                if text_input_res.lost_focus()
+                                    && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                                {
+                                    rotation_repr = Some(RotationRepr::RotationMatrix);
+                                }
+                            }
+                        },
+                    );
+                }
+            });
             ui.separator();
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -169,8 +242,8 @@ impl eframe::App for TemplateApp {
             });
         });
 
-        if need_update {
-            self.update_input();
+        if let Some(rotation_repr) = rotation_repr {
+            self.update_input(rotation_repr);
         }
     }
 }
