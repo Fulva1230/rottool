@@ -1,3 +1,4 @@
+use egui_extras::{Size, StripBuilder};
 use nalgebra as na;
 
 enum RotationRepr {
@@ -27,7 +28,7 @@ impl Default for TemplateApp {
                 ("Qz".to_owned(), "0.0".to_owned()),
             ],
             angleaxis: [
-                ("Angle (rad)".to_owned(), "0.0".to_owned()),
+                ("Ang (rad)".to_owned(), "0.0".to_owned()),
                 ("AxisX".to_owned(), "1.0".to_owned()),
                 ("AxisY".to_owned(), "0.0".to_owned()),
                 ("AxisZ".to_owned(), "0.0".to_owned()),
@@ -161,84 +162,91 @@ impl eframe::App for TemplateApp {
             ));
             ui.separator();
 
-            ui.label(egui::RichText::new("Quaternion:").heading());
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                let element_width =
-                    (ui.available_width() - 3.0 * ui.spacing().item_spacing.x) / 4.0;
-                for quat_e in self.quat.iter_mut() {
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(element_width, 999999.9),
-                        egui::Layout::top_down(egui::Align::LEFT),
-                        |ui| {
-                            ui.label(&quat_e.0);
-                            let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
-                            if text_input_res.lost_focus()
-                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                            {
-                                rotation_repr = Some(RotationRepr::Quaternion);
-                            }
-                            self.editted = text_input_res.changed() || self.editted;
-                        },
-                    );
-                }
-            });
-            ui.separator();
-
-            ui.label(egui::RichText::new("Angle-axis:").heading());
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                let element_width =
-                    (ui.available_width() - 3.0 * ui.spacing().item_spacing.x) / 4.0;
-                for angleaxis_e in self.angleaxis.iter_mut() {
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(element_width, 999999.9),
-                        egui::Layout::top_down(egui::Align::LEFT),
-                        |ui| {
-                            ui.label(&angleaxis_e.0);
-                            let text_input_res =
-                                ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
-                            if text_input_res.lost_focus()
-                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                            {
-                                rotation_repr = Some(RotationRepr::AngleAxis);
-                            }
-                            self.editted = text_input_res.changed() || self.editted;
-                        },
-                    );
-                }
-            });
-            ui.separator();
-
-            ui.label(egui::RichText::new("Rotation matrix:").heading());
-            ui.separator();
-
-            ui.horizontal(|ui| {
-                let element_width =
-                    (ui.available_width() - 2.0 * ui.spacing().item_spacing.x) / 3.0;
-                for col in 0..3 {
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::new(element_width, 999999.9),
-                        egui::Layout::top_down(egui::Align::LEFT),
-                        |ui| {
-                            for row in 0..3 {
-                                let text_input_res = ui.add(egui::TextEdit::singleline(
-                                    &mut self.rot_matrix[3 * col + row],
-                                ));
-                                if text_input_res.lost_focus()
-                                    && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                                {
-                                    rotation_repr = Some(RotationRepr::RotationMatrix);
+            StripBuilder::new(ui)
+                .size(Size::initial(0.0))
+                .size(Size::initial(0.0))
+                .size(Size::initial(0.0))
+                .size(Size::initial(0.0))
+                .size(Size::initial(0.0))
+                .size(Size::initial(0.0))
+                .vertical(|mut strip| {
+                    strip.cell(|ui| {
+                        ui.label(egui::RichText::new("Quaternion:").heading());
+                        ui.separator();
+                    });
+                    strip.strip(|strip_builder| {
+                        strip_builder
+                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+                            .horizontal(|mut strip| {
+                                for quat_e in self.quat.iter_mut() {
+                                    strip.cell(|ui| {
+                                        ui.label(&quat_e.0);
+                                        let text_input_res =
+                                            ui.add(egui::TextEdit::singleline(&mut quat_e.1));
+                                        if text_input_res.lost_focus()
+                                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                                        {
+                                            rotation_repr = Some(RotationRepr::Quaternion);
+                                        }
+                                        self.editted = text_input_res.changed() || self.editted;
+                                    });
                                 }
-                                self.editted = text_input_res.changed() || self.editted;
-                            }
-                        },
-                    );
-                }
-            });
-            ui.separator();
+                            });
+                    });
+                    strip.cell(|ui| {
+                        ui.separator();
+                        ui.label(egui::RichText::new("Angle-axis:").heading());
+                        ui.separator();
+                    });
+                    strip.strip(|strip_builder| {
+                        strip_builder
+                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+                            .horizontal(|mut strip| {
+                                for angleaxis_e in self.angleaxis.iter_mut() {
+                                    strip.cell(|ui| {
+                                        ui.label(&angleaxis_e.0);
+                                        let text_input_res =
+                                            ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
+                                        if text_input_res.lost_focus()
+                                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                                        {
+                                            rotation_repr = Some(RotationRepr::AngleAxis);
+                                        }
+                                        self.editted = text_input_res.changed() || self.editted;
+                                    });
+                                }
+                            });
+                    });
+                    strip.cell(|ui| {
+                        ui.separator();
+                        ui.label(egui::RichText::new("Rotation matrix:").heading());
+                        ui.separator();
+                    });
+                    strip.strip(|strip_builder| {
+                        strip_builder
+                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 3)
+                            .horizontal(|mut strip| {
+                                for col in 0..3 {
+                                    strip.cell(|ui| {
+                                        for row in 0..3 {
+                                            let text_input_res =
+                                                ui.add(egui::TextEdit::singleline(
+                                                    &mut self.rot_matrix[3 * col + row],
+                                                ));
+                                            if text_input_res.lost_focus()
+                                                && ui.input(|input| {
+                                                    input.key_pressed(egui::Key::Enter)
+                                                })
+                                            {
+                                                rotation_repr = Some(RotationRepr::RotationMatrix);
+                                            }
+                                            self.editted = text_input_res.changed() || self.editted;
+                                        }
+                                    });
+                                }
+                            });
+                    });
+                });
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
