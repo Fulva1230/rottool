@@ -64,7 +64,7 @@ impl TemplateApp {
         }
     }
 
-    fn update_input(&mut self, edited_item: RotationRepr) -> anyhow::Result<()> {
+    fn update_input(&mut self, edited_item: &RotationRepr) -> anyhow::Result<()> {
         let quat = match edited_item {
             RotationRepr::Quaternion => {
                 na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
@@ -115,10 +115,84 @@ impl TemplateApp {
             .iter()
             .enumerate()
             .for_each(|(i, &x)| {
-                self.rot_matrix[i] = format!("{:.4}", x);
+                *self.rot_matrix.get_mut(i).expect("failed access") = format!("{x:.4}");
             });
 
         Ok(())
+    }
+
+    fn quaternion_view(
+        &mut self,
+        strip_builder: egui_extras::StripBuilder<'_>,
+        rotation_repr: &mut Option<RotationRepr>,
+    ) {
+        strip_builder
+            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .horizontal(|mut strip| {
+                for quat_e in &mut self.quat {
+                    strip.cell(|ui| {
+                        ui.label(&quat_e.0);
+                        let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
+                        if text_input_res.lost_focus()
+                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                        {
+                            *rotation_repr = Some(RotationRepr::Quaternion);
+                        }
+                        self.editted = text_input_res.changed() || self.editted;
+                    });
+                }
+            });
+    }
+
+    fn angleaxis_view(
+        &mut self,
+        strip_builder: egui_extras::StripBuilder<'_>,
+        rotation_repr: &mut Option<RotationRepr>,
+    ) {
+        strip_builder
+            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .horizontal(|mut strip| {
+                for angleaxis_e in &mut self.angleaxis {
+                    strip.cell(|ui| {
+                        ui.label(&angleaxis_e.0);
+                        let text_input_res = ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
+                        if text_input_res.lost_focus()
+                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                        {
+                            *rotation_repr = Some(RotationRepr::AngleAxis);
+                        }
+                        self.editted = text_input_res.changed() || self.editted;
+                    });
+                }
+            });
+    }
+
+    fn rotation_matrix_view(
+        &mut self,
+        strip_builder: egui_extras::StripBuilder<'_>,
+        rotation_repr: &mut Option<RotationRepr>,
+    ) {
+        strip_builder
+            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 3)
+            .horizontal(|mut strip| {
+                for col in 0..3 {
+                    strip.cell(|ui| {
+                        for row in 0..3 {
+                            let text_input_res = ui.add(egui::TextEdit::singleline(
+                                self.rot_matrix
+                                    .get_mut(3 * col + row)
+                                    .expect("out of bounds"),
+                            ));
+                            if text_input_res.lost_focus()
+                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
+                            {
+                                *rotation_repr = Some(RotationRepr::RotationMatrix);
+                            }
+                            self.editted = text_input_res.changed() || self.editted;
+                        }
+                    });
+                }
+            });
     }
 }
 
@@ -175,23 +249,7 @@ impl eframe::App for TemplateApp {
                         ui.separator();
                     });
                     strip.strip(|strip_builder| {
-                        strip_builder
-                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
-                            .horizontal(|mut strip| {
-                                for quat_e in self.quat.iter_mut() {
-                                    strip.cell(|ui| {
-                                        ui.label(&quat_e.0);
-                                        let text_input_res =
-                                            ui.add(egui::TextEdit::singleline(&mut quat_e.1));
-                                        if text_input_res.lost_focus()
-                                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                                        {
-                                            rotation_repr = Some(RotationRepr::Quaternion);
-                                        }
-                                        self.editted = text_input_res.changed() || self.editted;
-                                    });
-                                }
-                            });
+                        self.quaternion_view(strip_builder, &mut rotation_repr);
                     });
                     strip.cell(|ui| {
                         ui.separator();
@@ -199,23 +257,7 @@ impl eframe::App for TemplateApp {
                         ui.separator();
                     });
                     strip.strip(|strip_builder| {
-                        strip_builder
-                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
-                            .horizontal(|mut strip| {
-                                for angleaxis_e in self.angleaxis.iter_mut() {
-                                    strip.cell(|ui| {
-                                        ui.label(&angleaxis_e.0);
-                                        let text_input_res =
-                                            ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
-                                        if text_input_res.lost_focus()
-                                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                                        {
-                                            rotation_repr = Some(RotationRepr::AngleAxis);
-                                        }
-                                        self.editted = text_input_res.changed() || self.editted;
-                                    });
-                                }
-                            });
+                        self.angleaxis_view(strip_builder, &mut rotation_repr);
                     });
                     strip.cell(|ui| {
                         ui.separator();
@@ -223,28 +265,7 @@ impl eframe::App for TemplateApp {
                         ui.separator();
                     });
                     strip.strip(|strip_builder| {
-                        strip_builder
-                            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 3)
-                            .horizontal(|mut strip| {
-                                for col in 0..3 {
-                                    strip.cell(|ui| {
-                                        for row in 0..3 {
-                                            let text_input_res =
-                                                ui.add(egui::TextEdit::singleline(
-                                                    &mut self.rot_matrix[3 * col + row],
-                                                ));
-                                            if text_input_res.lost_focus()
-                                                && ui.input(|input| {
-                                                    input.key_pressed(egui::Key::Enter)
-                                                })
-                                            {
-                                                rotation_repr = Some(RotationRepr::RotationMatrix);
-                                            }
-                                            self.editted = text_input_res.changed() || self.editted;
-                                        }
-                                    });
-                                }
-                            });
+                        self.rotation_matrix_view(strip_builder, &mut rotation_repr);
                     });
                 });
 
@@ -255,11 +276,8 @@ impl eframe::App for TemplateApp {
         });
 
         if let Some(rotation_repr) = rotation_repr {
-            match self.update_input(rotation_repr) {
-                Ok(_) => {
-                    self.editted = false;
-                }
-                Err(_) => {}
+            if self.update_input(&rotation_repr).is_ok() {
+                self.editted = false;
             }
         }
     }
