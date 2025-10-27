@@ -16,6 +16,7 @@ pub struct TemplateApp {
     angleaxis: [(String, String); 4],
     rot_matrix: [String; 9],
     editted: bool,
+    footer_height: f32,
 }
 
 impl Default for TemplateApp {
@@ -45,6 +46,7 @@ impl Default for TemplateApp {
                 "1.0".to_owned(),
             ],
             editted: false,
+            footer_height: 0.0,
         }
     }
 }
@@ -229,56 +231,77 @@ impl eframe::App for TemplateApp {
         let mut rotation_repr = None;
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading(format!(
-                "Rotation tool {}",
-                if self.editted { "(Unsync)" } else { "(Sync)" }
-            ));
-            ui.separator();
-
-            StripBuilder::new(ui)
-                .size(Size::initial(0.0))
-                .size(Size::initial(0.0))
-                .size(Size::initial(0.0))
-                .size(Size::initial(0.0))
-                .size(Size::initial(0.0))
-                .size(Size::initial(0.0))
-                .vertical(|mut strip| {
-                    strip.cell(|ui| {
-                        ui.label(egui::RichText::new("Quaternion:").heading());
-                        ui.separator();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                StripBuilder::new(ui)
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
+                    .vertical(|mut strip| {
+                        strip.cell(|ui| {
+                            ui.heading(format!(
+                                "Rotation tool {}",
+                                if self.editted { "(Unsync)" } else { "(Sync)" }
+                            ));
+                            ui.separator();
+                        });
+                        strip.cell(|ui| {
+                            ui.label(egui::RichText::new("Quaternion:").heading());
+                            ui.separator();
+                        });
+                        strip.strip(|strip_builder| {
+                            self.quaternion_view(strip_builder, &mut rotation_repr);
+                        });
+                        strip.cell(|ui| {
+                            ui.separator();
+                            ui.label(egui::RichText::new("Angle-axis:").heading());
+                            ui.separator();
+                        });
+                        strip.strip(|strip_builder| {
+                            self.angleaxis_view(strip_builder, &mut rotation_repr);
+                        });
+                        strip.cell(|ui| {
+                            ui.separator();
+                            ui.label(egui::RichText::new("Rotation matrix:").heading());
+                            ui.separator();
+                        });
+                        strip.strip(|strip_builder| {
+                            self.rotation_matrix_view(strip_builder, &mut rotation_repr);
+                        });
+                        strip.cell(|ui| {
+                            ui.separator();
+                        });
                     });
-                    strip.strip(|strip_builder| {
-                        self.quaternion_view(strip_builder, &mut rotation_repr);
-                    });
-                    strip.cell(|ui| {
-                        ui.separator();
-                        ui.label(egui::RichText::new("Angle-axis:").heading());
-                        ui.separator();
-                    });
-                    strip.strip(|strip_builder| {
-                        self.angleaxis_view(strip_builder, &mut rotation_repr);
-                    });
-                    strip.cell(|ui| {
-                        ui.separator();
-                        ui.label(egui::RichText::new("Rotation matrix:").heading());
-                        ui.separator();
-                    });
-                    strip.strip(|strip_builder| {
-                        self.rotation_matrix_view(strip_builder, &mut rotation_repr);
-                    });
-                });
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
+                if ui.available_height() > self.footer_height {
+                    self.footer_height = ui
+                        .with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                            powered_by_egui_and_eframe(ui);
+                            egui::warn_if_debug_build(ui);
+                        })
+                        .response
+                        .rect
+                        .height();
+                } else {
+                    self.footer_height = ui
+                        .with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                            egui::warn_if_debug_build(ui);
+                            powered_by_egui_and_eframe(ui);
+                        })
+                        .response
+                        .rect
+                        .height();
+                }
             });
         });
 
-        if let Some(rotation_repr) = rotation_repr {
-            if self.update_input(&rotation_repr).is_ok() {
-                self.editted = false;
-            }
+        if let Some(rotation_repr) = rotation_repr
+            && self.update_input(&rotation_repr).is_ok()
+        {
+            self.editted = false;
         }
     }
 }
