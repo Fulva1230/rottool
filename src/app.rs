@@ -1,10 +1,21 @@
 use egui_extras::{Size, StripBuilder};
 use nalgebra as na;
+use strum::IntoEnumIterator;
 
 enum RotationRepr {
     Quaternion,
     AngleAxis,
     RotationMatrix,
+    RawString
+}
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter)]
+enum RawStringType {
+    ColumnMajor4x4,
+    RowMajor4x4,
+    ColumnMajor3x3,
+    RowMajor3x3,
+    QuaternionWXYZ,
+    QuaternionXYZW,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -15,6 +26,8 @@ pub struct TemplateApp {
     quat: [(String, String); 4],
     angleaxis: [(String, String); 4],
     rot_matrix: [String; 9],
+    raw_string: String,
+    raw_string_type: RawStringType,
     editted: bool,
     footer_height: f32,
 }
@@ -45,6 +58,8 @@ impl Default for TemplateApp {
                 "0.0".to_owned(),
                 "1.0".to_owned(),
             ],
+            raw_string: String::new(),
+            raw_string_type: RawStringType::ColumnMajor4x4,
             editted: false,
             footer_height: 0.0,
         }
@@ -96,6 +111,60 @@ impl TemplateApp {
                 }
                 na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&matrix))
             }
+            RotationRepr::RawString => {
+                let nums = super::split_numbers(&self.raw_string);
+                match self.raw_string_type {
+                    RawStringType::ColumnMajor4x4 => {
+                        if nums.len() == 16 {
+                            let transform_mat = na::Matrix4::from_column_slice(&nums);
+                            let mut rot = na::Matrix3::identity();
+                            rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&rot))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                    RawStringType::RowMajor4x4 => {
+                        if nums.len() == 16 {
+                            let transform_mat = na::Matrix4::from_row_slice(&nums);
+                            let mut rot = na::Matrix3::identity();
+                            rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&rot))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                    RawStringType::ColumnMajor3x3 => {
+                        if nums.len() == 9 {
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_column_slice(&nums)))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                    RawStringType::RowMajor3x3 => {
+                        if nums.len() == 9 {
+                            log::log!(log::Level::Debug, "{:?}", nums);
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_row_slice(&nums)))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                    RawStringType::QuaternionWXYZ => {
+                        if nums.len() == 4 {
+                            na::UnitQuaternion::from_quaternion(na::Quaternion::new(nums[0], nums[1], nums[2], nums[3]))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                    RawStringType::QuaternionXYZW => {
+                        if nums.len() == 4 {
+                            na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(na::Vector4::from_column_slice(&nums)))
+                        } else {
+                            anyhow::bail!("len wrong");
+                        }
+                    }
+                }
+            }
         };
         self.quat[0].1 = format!("{:.4}", quat.w);
         self.quat[1].1 = format!("{:.4}", quat.i);
@@ -126,7 +195,7 @@ impl TemplateApp {
     fn quaternion_view(
         &mut self,
         strip_builder: egui_extras::StripBuilder<'_>,
-        rotation_repr: &mut Option<RotationRepr>,
+        edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
             .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
@@ -138,7 +207,7 @@ impl TemplateApp {
                         if text_input_res.lost_focus()
                             && ui.input(|input| input.key_pressed(egui::Key::Enter))
                         {
-                            *rotation_repr = Some(RotationRepr::Quaternion);
+                            *edited_item = Some(RotationRepr::Quaternion);
                         }
                         self.editted = text_input_res.changed() || self.editted;
                     });
@@ -149,7 +218,7 @@ impl TemplateApp {
     fn angleaxis_view(
         &mut self,
         strip_builder: egui_extras::StripBuilder<'_>,
-        rotation_repr: &mut Option<RotationRepr>,
+        edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
             .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
@@ -161,7 +230,7 @@ impl TemplateApp {
                         if text_input_res.lost_focus()
                             && ui.input(|input| input.key_pressed(egui::Key::Enter))
                         {
-                            *rotation_repr = Some(RotationRepr::AngleAxis);
+                            *edited_item = Some(RotationRepr::AngleAxis);
                         }
                         self.editted = text_input_res.changed() || self.editted;
                     });
@@ -172,7 +241,7 @@ impl TemplateApp {
     fn rotation_matrix_view(
         &mut self,
         strip_builder: egui_extras::StripBuilder<'_>,
-        rotation_repr: &mut Option<RotationRepr>,
+        edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
             .sizes(Size::remainder().at_least(60.0).at_most(100.0), 3)
@@ -188,13 +257,31 @@ impl TemplateApp {
                             if text_input_res.lost_focus()
                                 && ui.input(|input| input.key_pressed(egui::Key::Enter))
                             {
-                                *rotation_repr = Some(RotationRepr::RotationMatrix);
+                                *edited_item = Some(RotationRepr::RotationMatrix);
                             }
                             self.editted = text_input_res.changed() || self.editted;
                         }
                     });
                 }
             });
+    }
+
+    fn raw_string_access(&mut self, ui: &mut egui::Ui, edited_item: &mut Option<RotationRepr>) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                if ui.button("import").clicked() {
+                    *edited_item = Some(RotationRepr::RawString);
+                }
+                egui::ComboBox::from_label("type")
+                    .selected_text(format!("{:?}", self.raw_string_type)).show_ui(ui, |ui| {
+                    for string_type in RawStringType::iter() {
+                        ui.selectable_value(&mut self.raw_string_type, string_type, format!("{:?}", string_type));
+                    }
+                })
+            });
+            let text_input_res = ui.add_sized([ui.available_size_before_wrap().x, 150.0], egui::TextEdit::multiline(&mut self.raw_string));
+            self.editted = text_input_res.changed() || self.editted;
+        });
     }
 }
 
@@ -241,6 +328,7 @@ impl eframe::App for TemplateApp {
                     .size(Size::initial(0.0))
                     .size(Size::initial(0.0))
                     .size(Size::initial(0.0))
+                    .size(Size::initial(0.0))
                     .vertical(|mut strip| {
                         strip.cell(|ui| {
                             ui.heading(format!(
@@ -275,6 +363,9 @@ impl eframe::App for TemplateApp {
                         strip.cell(|ui| {
                             ui.separator();
                         });
+                        strip.cell(|ui| {
+                            self.raw_string_access(ui, &mut rotation_repr);
+                        })
                     });
                 if ui.available_height() > self.footer_height {
                     self.footer_height = ui
