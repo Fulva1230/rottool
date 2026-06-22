@@ -6,9 +6,11 @@ enum RotationRepr {
     Quaternion,
     AngleAxis,
     RotationMatrix,
-    RawString
+    RawString,
 }
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter,
+)]
 enum RawStringType {
     ColumnMajor4x4,
     RowMajor4x4,
@@ -119,7 +121,9 @@ impl TemplateApp {
                             let transform_mat = na::Matrix4::from_column_slice(&nums);
                             let mut rot = na::Matrix3::identity();
                             rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&rot))
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
+                                &rot,
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
@@ -129,14 +133,18 @@ impl TemplateApp {
                             let transform_mat = na::Matrix4::from_row_slice(&nums);
                             let mut rot = na::Matrix3::identity();
                             rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&rot))
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
+                                &rot,
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
                     }
                     RawStringType::ColumnMajor3x3 => {
                         if nums.len() == 9 {
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_column_slice(&nums)))
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
+                                &na::Matrix3::from_column_slice(&nums),
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
@@ -144,21 +152,27 @@ impl TemplateApp {
                     RawStringType::RowMajor3x3 => {
                         if nums.len() == 9 {
                             log::log!(log::Level::Debug, "{:?}", nums);
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_row_slice(&nums)))
+                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
+                                &na::Matrix3::from_row_slice(&nums),
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
                     }
                     RawStringType::QuaternionWXYZ => {
                         if nums.len() == 4 {
-                            na::UnitQuaternion::from_quaternion(na::Quaternion::new(nums[0], nums[1], nums[2], nums[3]))
+                            na::UnitQuaternion::from_quaternion(na::Quaternion::new(
+                                nums[0], nums[1], nums[2], nums[3],
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
                     }
                     RawStringType::QuaternionXYZW => {
                         if nums.len() == 4 {
-                            na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(na::Vector4::from_column_slice(&nums)))
+                            na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(
+                                na::Vector4::from_column_slice(&nums),
+                            ))
                         } else {
                             anyhow::bail!("len wrong");
                         }
@@ -273,13 +287,23 @@ impl TemplateApp {
                     *edited_item = Some(RotationRepr::RawString);
                 }
                 egui::ComboBox::from_label("type")
-                    .selected_text(format!("{:?}", self.raw_string_type)).show_ui(ui, |ui| {
-                    for string_type in RawStringType::iter() {
-                        ui.selectable_value(&mut self.raw_string_type, string_type, format!("{:?}", string_type));
-                    }
-                })
+                    .selected_text(format!("{:?}", self.raw_string_type))
+                    .show_ui(ui, |ui| {
+                        for string_type in RawStringType::iter() {
+                            ui.selectable_value(
+                                &mut self.raw_string_type,
+                                string_type,
+                                format!("{:?}", string_type),
+                            );
+                        }
+                    })
             });
-            let text_input_res = ui.add_sized([ui.available_size_before_wrap().x, 150.0], egui::TextEdit::multiline(&mut self.raw_string));
+            let text_input_res = ui.add_sized(
+                [ui.available_size_before_wrap().x, 150.0],
+                egui::TextEdit::multiline(&mut self.raw_string).layouter(&mut |ui, text, wrap_width| {
+                    ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
+                }),
+            );
             self.editted = text_input_res.changed() || self.editted;
         });
     }
