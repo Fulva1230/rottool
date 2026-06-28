@@ -1,6 +1,5 @@
 use eframe::Frame;
 use egui::Ui;
-use egui_extras::{Size, StripBuilder};
 use nalgebra as na;
 use strum::IntoEnumIterator;
 
@@ -214,7 +213,7 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
             .horizontal(|mut strip| {
                 for quat_e in &mut self.quat {
                     strip.cell(|ui| {
@@ -237,7 +236,7 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
             .horizontal(|mut strip| {
                 for angleaxis_e in &mut self.angleaxis {
                     strip.cell(|ui| {
@@ -260,7 +259,7 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(Size::remainder().at_least(60.0).at_most(100.0), 3)
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 3)
             .horizontal(|mut strip| {
                 for col in 0..3 {
                     strip.cell(|ui| {
@@ -353,19 +352,19 @@ impl eframe::App for TemplateApp {
                 ui.label(egui::RichText::new("Quaternion:").heading());
                 ui.separator();
                 ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.quaternion_view(StripBuilder::new(ui), &mut rotation_repr);
+                    self.quaternion_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
                 });
                 ui.separator();
                 ui.label(egui::RichText::new("Angle-axis:").heading());
                 ui.separator();
                 ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.angleaxis_view(StripBuilder::new(ui), &mut rotation_repr);
+                    self.angleaxis_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
                 });
                 ui.separator();
                 ui.label(egui::RichText::new("Rotation matrix:").heading());
                 ui.separator();
                 ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.rotation_matrix_view(StripBuilder::new(ui), &mut rotation_repr);
+                    self.rotation_matrix_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
                 });
                 ui.separator();
                 self.raw_string_access(ui, &mut rotation_repr);
