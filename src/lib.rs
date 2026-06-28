@@ -4,7 +4,7 @@ mod app;
 pub use app::TemplateApp;
 fn render_numbers(text: &str) -> egui::text::LayoutJob {
     let mut layout_job: egui::text::LayoutJob = Default::default();
-    let re = regex::Regex::new(r"-?\d+\.?\d*").unwrap();
+    let re = regex::Regex::new(r"-?\d+\.?\d*").expect("Failed to compile regex");
     let mut rendered = 0;
     for match_e in re.find_iter(text) {
         layout_job.append(&text[rendered..match_e.start()], 0.0, egui::TextFormat {
@@ -21,11 +21,12 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
         ..Default::default()
     });
     rendered = text.len();
+    debug_assert_eq!(rendered, text.len());
     layout_job
 }
 
 fn split_numbers(s: &str) -> Vec<f64> {
-    let re = regex::Regex::new(r"-?\d+\.?\d*").unwrap();
+    let re = regex::Regex::new(r"-?\d+\.?\d*").expect("Failed to compile regex");
     re.captures_iter(s).map(|c| c[0].parse().unwrap_or_default()).collect::<Vec<f64>>()
 }
 #[cfg(test)]

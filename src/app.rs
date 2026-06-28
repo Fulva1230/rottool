@@ -1,5 +1,4 @@
 use eframe::Frame;
-use egui::Ui;
 use nalgebra as na;
 use strum::IntoEnumIterator;
 
@@ -152,7 +151,6 @@ impl TemplateApp {
                     }
                     RawStringType::RowMajor3x3 => {
                         if nums.len() == 9 {
-                            log::log!(log::Level::Debug, "{:?}", nums);
                             na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
                                 &na::Matrix3::from_row_slice(&nums),
                             ))
@@ -301,7 +299,7 @@ impl TemplateApp {
             });
             let text_input_res = ui.add_sized(
                 [ui.available_size_before_wrap().x, 150.0],
-                egui::TextEdit::multiline(&mut self.raw_string).layouter(&mut |ui, text, wrap_width| {
+                egui::TextEdit::multiline(&mut self.raw_string).layouter(&mut |ui, text, _wrap_width| {
                     ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
                 }),
             );
@@ -317,7 +315,7 @@ impl eframe::App for TemplateApp {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn ui(&mut self, ui: &mut Ui, frame: &mut Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _: &mut Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
