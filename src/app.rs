@@ -345,54 +345,30 @@ impl eframe::App for TemplateApp {
 
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                StripBuilder::new(ui)
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .size(Size::initial(0.0))
-                    .vertical(|mut strip| {
-                        strip.cell(|ui| {
-                            ui.heading(format!(
-                                "Rotation tool {}",
-                                if self.editted { "(Unsync)" } else { "(Sync)" }
-                            ));
-                            ui.separator();
-                        });
-                        strip.cell(|ui| {
-                            ui.label(egui::RichText::new("Quaternion:").heading());
-                            ui.separator();
-                        });
-                        strip.strip(|strip_builder| {
-                            self.quaternion_view(strip_builder, &mut rotation_repr);
-                        });
-                        strip.cell(|ui| {
-                            ui.separator();
-                            ui.label(egui::RichText::new("Angle-axis:").heading());
-                            ui.separator();
-                        });
-                        strip.strip(|strip_builder| {
-                            self.angleaxis_view(strip_builder, &mut rotation_repr);
-                        });
-                        strip.cell(|ui| {
-                            ui.separator();
-                            ui.label(egui::RichText::new("Rotation matrix:").heading());
-                            ui.separator();
-                        });
-                        strip.strip(|strip_builder| {
-                            self.rotation_matrix_view(strip_builder, &mut rotation_repr);
-                        });
-                        strip.cell(|ui| {
-                            ui.separator();
-                        });
-                        strip.cell(|ui| {
-                            self.raw_string_access(ui, &mut rotation_repr);
-                        })
-                    });
+                ui.heading(format!(
+                    "Rotation tool {}",
+                    if self.editted { "(Unsync)" } else { "(Sync)" }
+                ));
+                ui.separator();
+                ui.label(egui::RichText::new("Quaternion:").heading());
+                ui.separator();
+                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    self.quaternion_view(StripBuilder::new(ui), &mut rotation_repr);
+                });
+                ui.separator();
+                ui.label(egui::RichText::new("Angle-axis:").heading());
+                ui.separator();
+                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    self.angleaxis_view(StripBuilder::new(ui), &mut rotation_repr);
+                });
+                ui.separator();
+                ui.label(egui::RichText::new("Rotation matrix:").heading());
+                ui.separator();
+                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                    self.rotation_matrix_view(StripBuilder::new(ui), &mut rotation_repr);
+                });
+                ui.separator();
+                self.raw_string_access(ui, &mut rotation_repr);
                 if ui.available_height() > self.footer_height {
                     self.footer_height = ui
                         .with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
