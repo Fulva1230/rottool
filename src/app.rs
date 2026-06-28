@@ -31,7 +31,7 @@ pub struct TemplateApp {
     rot_matrix: [String; 9],
     raw_string: String,
     raw_string_type: RawStringType,
-    editted: bool,
+    edited: bool,
     footer_height: f32,
 }
 
@@ -63,7 +63,7 @@ impl Default for TemplateApp {
             ],
             raw_string: String::new(),
             raw_string_type: RawStringType::ColumnMajor4x4,
-            editted: false,
+            edited: false,
             footer_height: 0.0,
         }
     }
@@ -224,7 +224,7 @@ impl TemplateApp {
                         {
                             *edited_item = Some(RotationRepr::Quaternion);
                         }
-                        self.editted = text_input_res.changed() || self.editted;
+                        self.edited = text_input_res.changed() || self.edited;
                     });
                 }
             });
@@ -247,7 +247,7 @@ impl TemplateApp {
                         {
                             *edited_item = Some(RotationRepr::AngleAxis);
                         }
-                        self.editted = text_input_res.changed() || self.editted;
+                        self.edited = text_input_res.changed() || self.edited;
                     });
                 }
             });
@@ -274,7 +274,7 @@ impl TemplateApp {
                             {
                                 *edited_item = Some(RotationRepr::RotationMatrix);
                             }
-                            self.editted = text_input_res.changed() || self.editted;
+                            self.edited = text_input_res.changed() || self.edited;
                         }
                     });
                 }
@@ -305,7 +305,7 @@ impl TemplateApp {
                     ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
                 }),
             );
-            self.editted = text_input_res.changed() || self.editted;
+            self.edited = text_input_res.changed() || self.edited;
         });
     }
 }
@@ -346,7 +346,7 @@ impl eframe::App for TemplateApp {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading(format!(
                     "Rotation tool {}",
-                    if self.editted { "(Unsync)" } else { "(Sync)" }
+                    if self.edited { "(Unsync)" } else { "(Sync)" }
                 ));
                 ui.separator();
                 ui.label(egui::RichText::new("Quaternion:").heading());
@@ -393,7 +393,7 @@ impl eframe::App for TemplateApp {
         if let Some(rotation_repr) = rotation_repr
             && self.update_input(&rotation_repr).is_ok()
         {
-            self.editted = false;
+            self.edited = false;
         }
     }
 }
