@@ -114,7 +114,8 @@ impl TemplateApp {
                 na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&matrix))
             }
             RotationRepr::RawString => {
-                let nums = super::split_numbers(&self.raw_string);
+                let nums = super::split_numbers(&self.raw_string)
+                    .into_iter().map(|range| self.raw_string[range].parse().unwrap()).collect::<Vec<_>>();
                 match self.raw_string_type {
                     RawStringType::ColumnMajor4x4 => {
                         if nums.len() == 16 {
