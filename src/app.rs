@@ -1,42 +1,25 @@
+use crate::{rotation_to_string, RotRawStringType, RotationRepr};
 use eframe::Frame;
 use nalgebra as na;
 use strum::IntoEnumIterator;
 
-enum RotationRepr {
-    Quaternion,
-    AngleAxis,
-    RotationMatrix,
-    RawString,
-}
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter,
-)]
-enum RawStringType {
-    ColumnMajor4x4,
-    RowMajor4x4,
-    ColumnMajor3x3,
-    RowMajor3x3,
-    QuaternionWXYZ,
-    QuaternionXYZW,
-}
-
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
-    // Example stuff:
+pub struct Rotttol {
+    rot: na::UnitQuaternion<f64>,
     quat: [(String, String); 4],
     angleaxis: [(String, String); 4],
     rot_matrix: [String; 9],
     raw_string: String,
-    raw_string_type: RawStringType,
+    raw_string_type: RotRawStringType,
     edited: bool,
     footer_height: f32,
 }
 
-impl Default for TemplateApp {
+impl Default for Rotttol {
     fn default() -> Self {
         Self {
+            rot: na::UnitQuaternion::identity(),
             quat: [
                 ("Qw".to_owned(), "1.0".to_owned()),
                 ("Qx".to_owned(), "0.0".to_owned()),
@@ -61,14 +44,14 @@ impl Default for TemplateApp {
                 "1.0".to_owned(),
             ],
             raw_string: String::new(),
-            raw_string_type: RawStringType::ColumnMajor4x4,
+            raw_string_type: RotRawStringType::ColumnMajor4x4,
             edited: false,
             footer_height: 0.0,
         }
     }
 }
 
-impl TemplateApp {
+impl Rotttol {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -84,7 +67,7 @@ impl TemplateApp {
     }
 
     fn update_input(&mut self, edited_item: &RotationRepr) -> anyhow::Result<()> {
-        let quat = match edited_item {
+        self.rot = match edited_item {
             RotationRepr::Quaternion => {
                 na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
                     self.quat[0].1.parse()?,
@@ -118,7 +101,7 @@ impl TemplateApp {
                     .map(|range| self.raw_string[range].parse().unwrap())
                     .collect::<Vec<_>>();
                 match self.raw_string_type {
-                    RawStringType::ColumnMajor4x4 => {
+                    RotRawStringType::ColumnMajor4x4 => {
                         if nums.len() == 16 {
                             let transform_mat = na::Matrix4::from_column_slice(&nums);
                             let mut rot = na::Matrix3::identity();
@@ -130,7 +113,7 @@ impl TemplateApp {
                             anyhow::bail!("len wrong");
                         }
                     }
-                    RawStringType::RowMajor4x4 => {
+                    RotRawStringType::RowMajor4x4 => {
                         if nums.len() == 16 {
                             let transform_mat = na::Matrix4::from_row_slice(&nums);
                             let mut rot = na::Matrix3::identity();
@@ -142,7 +125,7 @@ impl TemplateApp {
                             anyhow::bail!("len wrong");
                         }
                     }
-                    RawStringType::ColumnMajor3x3 => {
+                    RotRawStringType::ColumnMajor3x3 => {
                         if nums.len() == 9 {
                             na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
                                 &na::Matrix3::from_column_slice(&nums),
@@ -151,7 +134,7 @@ impl TemplateApp {
                             anyhow::bail!("len wrong");
                         }
                     }
-                    RawStringType::RowMajor3x3 => {
+                    RotRawStringType::RowMajor3x3 => {
                         if nums.len() == 9 {
                             na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
                                 &na::Matrix3::from_row_slice(&nums),
@@ -160,7 +143,7 @@ impl TemplateApp {
                             anyhow::bail!("len wrong");
                         }
                     }
-                    RawStringType::QuaternionWXYZ => {
+                    RotRawStringType::QuaternionWXYZ => {
                         if nums.len() == 4 {
                             na::UnitQuaternion::from_quaternion(na::Quaternion::new(
                                 nums[0], nums[1], nums[2], nums[3],
@@ -169,7 +152,7 @@ impl TemplateApp {
                             anyhow::bail!("len wrong");
                         }
                     }
-                    RawStringType::QuaternionXYZW => {
+                    RotRawStringType::QuaternionXYZW => {
                         if nums.len() == 4 {
                             na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(
                                 na::Vector4::from_column_slice(&nums),
@@ -181,11 +164,11 @@ impl TemplateApp {
                 }
             }
         };
-        self.quat[0].1 = format!("{:.4}", quat.w);
-        self.quat[1].1 = format!("{:.4}", quat.i);
-        self.quat[2].1 = format!("{:.4}", quat.j);
-        self.quat[3].1 = format!("{:.4}", quat.k);
-        if let Some(angleaxis) = quat.axis_angle() {
+        self.quat[0].1 = format!("{:.4}", self.rot.w);
+        self.quat[1].1 = format!("{:.4}", self.rot.i);
+        self.quat[2].1 = format!("{:.4}", self.rot.j);
+        self.quat[3].1 = format!("{:.4}", self.rot.k);
+        if let Some(angleaxis) = self.rot.axis_angle() {
             self.angleaxis[0].1 = format!("{:.4}", angleaxis.1);
             self.angleaxis[1].1 = format!("{:.4}", angleaxis.0.x);
             self.angleaxis[2].1 = format!("{:.4}", angleaxis.0.y);
@@ -196,7 +179,7 @@ impl TemplateApp {
             self.angleaxis[2].1 = format!("{:.4}", 0.0);
             self.angleaxis[3].1 = format!("{:.4}", 0.0);
         }
-        quat.to_rotation_matrix()
+        self.rot.to_rotation_matrix()
             .matrix()
             .iter()
             .enumerate()
@@ -293,13 +276,16 @@ impl TemplateApp {
     fn raw_string_access(&mut self, ui: &mut egui::Ui, edited_item: &mut Option<RotationRepr>) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
-                if ui.button("import").clicked() {
+                if ui.button("Import").clicked() {
                     *edited_item = Some(RotationRepr::RawString);
+                }
+                if ui.button("Export").clicked() && !self.edited {
+                    self.raw_string = rotation_to_string(self.rot, self.raw_string_type);
                 }
                 egui::ComboBox::from_label("type")
                     .selected_text(format!("{:?}", self.raw_string_type))
                     .show_ui(ui, |ui| {
-                        for string_type in RawStringType::iter() {
+                        for string_type in RotRawStringType::iter() {
                             ui.selectable_value(
                                 &mut self.raw_string_type,
                                 string_type,
@@ -321,7 +307,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for Rotttol {
     /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
