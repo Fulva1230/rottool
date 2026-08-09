@@ -56,6 +56,14 @@ impl Rotttol {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert("JetbrainsMono".to_owned(), egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono-Regular.ttf")).into());
+        fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap()
+            .insert(0, "JetbrainsMono".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
+        cc.egui_ctx.all_styles_mut(|style| {
+            style.text_styles.get_mut(&egui::TextStyle::Body).unwrap().family = egui::FontFamily::Monospace;
+        });
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.

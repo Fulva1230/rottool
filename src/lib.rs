@@ -13,7 +13,8 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
             &text[rendered..range.start],
             0.0,
             egui::TextFormat {
-                background: egui::Color32::GRAY,
+                background: egui::Color32::DARK_GRAY,
+                font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
                 ..Default::default()
             },
         );
@@ -21,6 +22,7 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
             &text[range.start..range.end],
             0.0,
             egui::TextFormat {
+                font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
                 ..Default::default()
             },
         );
@@ -30,7 +32,8 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
         &text[rendered..],
         0.0,
         egui::TextFormat {
-            background: egui::Color32::GRAY,
+            background: egui::Color32::DARK_GRAY,
+            font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
             ..Default::default()
         },
     );
