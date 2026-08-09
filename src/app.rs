@@ -115,7 +115,8 @@ impl TemplateApp {
             }
             RotationRepr::RawString => {
                 let nums = super::split_numbers(&self.raw_string)
-                    .into_iter().map(|range| self.raw_string[range].parse().unwrap()).collect::<Vec<_>>();
+                    .map(|range| self.raw_string[range].parse().unwrap())
+                    .collect::<Vec<_>>();
                 match self.raw_string_type {
                     RawStringType::ColumnMajor4x4 => {
                         if nums.len() == 16 {
@@ -212,7 +213,10 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .sizes(
+                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
+                4,
+            )
             .horizontal(|mut strip| {
                 for quat_e in &mut self.quat {
                     strip.cell(|ui| {
@@ -235,7 +239,10 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
+            .sizes(
+                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
+                4,
+            )
             .horizontal(|mut strip| {
                 for angleaxis_e in &mut self.angleaxis {
                     strip.cell(|ui| {
@@ -258,7 +265,10 @@ impl TemplateApp {
         edited_item: &mut Option<RotationRepr>,
     ) {
         strip_builder
-            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 3)
+            .sizes(
+                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
+                3,
+            )
             .horizontal(|mut strip| {
                 for col in 0..3 {
                     strip.cell(|ui| {
@@ -300,9 +310,11 @@ impl TemplateApp {
             });
             let text_input_res = ui.add_sized(
                 [ui.available_size_before_wrap().x, 150.0],
-                egui::TextEdit::multiline(&mut self.raw_string).layouter(&mut |ui, text, _wrap_width| {
-                    ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
-                }),
+                egui::TextEdit::multiline(&mut self.raw_string).layouter(
+                    &mut |ui, text, _wrap_width| {
+                        ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
+                    },
+                ),
             );
             self.edited = text_input_res.changed() || self.edited;
         });
@@ -350,21 +362,39 @@ impl eframe::App for TemplateApp {
                 ui.separator();
                 ui.label(egui::RichText::new("Quaternion:").heading());
                 ui.separator();
-                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.quaternion_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
-                });
+                ui.allocate_ui_with_layout(
+                    [ui.available_size_before_wrap().x, 0.0].into(),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        self.quaternion_view(
+                            egui_extras::StripBuilder::new(ui),
+                            &mut rotation_repr,
+                        );
+                    },
+                );
                 ui.separator();
                 ui.label(egui::RichText::new("Angle-axis:").heading());
                 ui.separator();
-                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.angleaxis_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
-                });
+                ui.allocate_ui_with_layout(
+                    [ui.available_size_before_wrap().x, 0.0].into(),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        self.angleaxis_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
+                    },
+                );
                 ui.separator();
                 ui.label(egui::RichText::new("Rotation matrix:").heading());
                 ui.separator();
-                ui.allocate_ui_with_layout([ui.available_size_before_wrap().x, 0.0].into(), egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    self.rotation_matrix_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
-                });
+                ui.allocate_ui_with_layout(
+                    [ui.available_size_before_wrap().x, 0.0].into(),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        self.rotation_matrix_view(
+                            egui_extras::StripBuilder::new(ui),
+                            &mut rotation_repr,
+                        );
+                    },
+                );
                 ui.separator();
                 self.raw_string_access(ui, &mut rotation_repr);
                 if ui.available_height() > self.footer_height {
