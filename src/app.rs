@@ -1,17 +1,15 @@
-use crate::{rotation_to_string, RotRawStringType, RotationRepr};
+use crate::{RotationEditor, RotationEditorResponse, editor, rotation_to_string};
 use eframe::Frame;
 use nalgebra as na;
-use strum::IntoEnumIterator;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Rotttol {
     rot: na::UnitQuaternion<f64>,
-    quat: [(String, String); 4],
-    angleaxis: [(String, String); 4],
-    rot_matrix: [String; 9],
-    raw_string: String,
-    raw_string_type: RotRawStringType,
+    quat: editor::QuaternionEditor,
+    angle_axis: editor::AngleAxisEditor,
+    rot_matrix: editor::RotMatrixEditor,
+    raw_string: editor::RawStringEditor,
     edited: bool,
     footer_height: f32,
 }
@@ -20,31 +18,10 @@ impl Default for Rotttol {
     fn default() -> Self {
         Self {
             rot: na::UnitQuaternion::identity(),
-            quat: [
-                ("Qw".to_owned(), "1.0".to_owned()),
-                ("Qx".to_owned(), "0.0".to_owned()),
-                ("Qy".to_owned(), "0.0".to_owned()),
-                ("Qz".to_owned(), "0.0".to_owned()),
-            ],
-            angleaxis: [
-                ("Ang (rad)".to_owned(), "0.0".to_owned()),
-                ("AxisX".to_owned(), "1.0".to_owned()),
-                ("AxisY".to_owned(), "0.0".to_owned()),
-                ("AxisZ".to_owned(), "0.0".to_owned()),
-            ],
-            rot_matrix: [
-                "1.0".to_owned(),
-                "0.0".to_owned(),
-                "0.0".to_owned(),
-                "0.0".to_owned(),
-                "1.0".to_owned(),
-                "0.0".to_owned(),
-                "0.0".to_owned(),
-                "0.0".to_owned(),
-                "1.0".to_owned(),
-            ],
-            raw_string: String::new(),
-            raw_string_type: RotRawStringType::ColumnMajor4x4,
+            quat: Default::default(),
+            angle_axis: Default::default(),
+            rot_matrix: Default::default(),
+            raw_string: Default::default(),
             edited: false,
             footer_height: 0.0,
         }
@@ -57,12 +34,22 @@ impl Rotttol {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
         let mut fonts = egui::FontDefinitions::default();
-        fonts.font_data.insert("JetbrainsMono".to_owned(), egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono-Regular.ttf")).into());
-        fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap()
+        fonts.font_data.insert(
+            "JetbrainsMono".to_owned(),
+            egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono-Regular.ttf")).into(),
+        );
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .expect("No monospace font family")
             .insert(0, "JetbrainsMono".to_owned());
         cc.egui_ctx.set_fonts(fonts);
         cc.egui_ctx.all_styles_mut(|style| {
-            style.text_styles.get_mut(&egui::TextStyle::Body).unwrap().family = egui::FontFamily::Monospace;
+            style
+                .text_styles
+                .get_mut(&egui::TextStyle::Body)
+                .expect("No body text style component")
+                .family = egui::FontFamily::Monospace;
         });
 
         // Load previous app state (if any).
@@ -73,262 +60,23 @@ impl Rotttol {
             Default::default()
         }
     }
-
-    fn update_input(&mut self, edited_item: &RotationRepr) -> anyhow::Result<()> {
-        self.rot = match edited_item {
-            RotationRepr::Quaternion => {
-                na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
-                    self.quat[0].1.parse()?,
-                    self.quat[1].1.parse()?,
-                    self.quat[2].1.parse()?,
-                    self.quat[3].1.parse()?,
-                ))
-            }
-            RotationRepr::AngleAxis => {
-                let angle = self.angleaxis[0].1.parse()?;
-                let axis = na::UnitVector3::new_normalize(na::Vector3::new(
-                    self.angleaxis[1].1.parse()?,
-                    self.angleaxis[2].1.parse()?,
-                    self.angleaxis[3].1.parse()?,
-                ));
-                na::UnitQuaternion::from_axis_angle(&axis, angle)
-            }
-            RotationRepr::RotationMatrix => {
-                let mut matrix = na::Matrix3::from_iterator(
-                    self.rot_matrix
-                        .iter()
-                        .map(|e| e.parse::<f64>().unwrap_or(0.0)),
-                );
-                if matrix.rank(0.0001) < 3 {
-                    matrix = na::Matrix3::identity();
+    fn ui_rotation_editor(ui: &mut egui::Ui, editor: &mut impl RotationEditor, edited: &mut bool, sync_rot: &mut Option<na::UnitQuaternion<f64>>) {
+        for response in editor.ui(ui, *edited) {
+            match response {
+                RotationEditorResponse::TriggerSync(rot) => {
+                    *sync_rot = Some(rot);
                 }
-                na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&matrix))
-            }
-            RotationRepr::RawString => {
-                let nums = super::split_numbers(&self.raw_string)
-                    .map(|range| self.raw_string[range].parse().unwrap())
-                    .collect::<Vec<_>>();
-                match self.raw_string_type {
-                    RotRawStringType::ColumnMajor4x4 => {
-                        if nums.len() == 16 {
-                            let transform_mat = na::Matrix4::from_column_slice(&nums);
-                            let mut rot = na::Matrix3::identity();
-                            rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                                &rot,
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
-                    RotRawStringType::RowMajor4x4 => {
-                        if nums.len() == 16 {
-                            let transform_mat = na::Matrix4::from_row_slice(&nums);
-                            let mut rot = na::Matrix3::identity();
-                            rot.copy_from(&transform_mat.fixed_view::<3, 3>(0, 0));
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                                &rot,
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
-                    RotRawStringType::ColumnMajor3x3 => {
-                        if nums.len() == 9 {
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                                &na::Matrix3::from_column_slice(&nums),
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
-                    RotRawStringType::RowMajor3x3 => {
-                        if nums.len() == 9 {
-                            na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                                &na::Matrix3::from_row_slice(&nums),
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
-                    RotRawStringType::QuaternionWXYZ => {
-                        if nums.len() == 4 {
-                            na::UnitQuaternion::from_quaternion(na::Quaternion::new(
-                                nums[0], nums[1], nums[2], nums[3],
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
-                    RotRawStringType::QuaternionXYZW => {
-                        if nums.len() == 4 {
-                            na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(
-                                na::Vector4::from_column_slice(&nums),
-                            ))
-                        } else {
-                            anyhow::bail!("len wrong");
-                        }
-                    }
+                RotationEditorResponse::Edited => {
+                    *edited = true;
                 }
             }
-        };
-        self.quat[0].1 = format!("{:.4}", self.rot.w);
-        self.quat[1].1 = format!("{:.4}", self.rot.i);
-        self.quat[2].1 = format!("{:.4}", self.rot.j);
-        self.quat[3].1 = format!("{:.4}", self.rot.k);
-        if let Some(angleaxis) = self.rot.axis_angle() {
-            self.angleaxis[0].1 = format!("{:.4}", angleaxis.1);
-            self.angleaxis[1].1 = format!("{:.4}", angleaxis.0.x);
-            self.angleaxis[2].1 = format!("{:.4}", angleaxis.0.y);
-            self.angleaxis[3].1 = format!("{:.4}", angleaxis.0.z);
-        } else {
-            self.angleaxis[0].1 = format!("{:.4}", 0.0);
-            self.angleaxis[1].1 = format!("{:.4}", 1.0);
-            self.angleaxis[2].1 = format!("{:.4}", 0.0);
-            self.angleaxis[3].1 = format!("{:.4}", 0.0);
         }
-        self.rot.to_rotation_matrix()
-            .matrix()
-            .iter()
-            .enumerate()
-            .for_each(|(i, &x)| {
-                *self.rot_matrix.get_mut(i).expect("failed access") = format!("{x:.4}");
-            });
-
-        Ok(())
-    }
-
-    fn quaternion_view(
-        &mut self,
-        strip_builder: egui_extras::StripBuilder<'_>,
-        edited_item: &mut Option<RotationRepr>,
-    ) {
-        strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                4,
-            )
-            .horizontal(|mut strip| {
-                for quat_e in &mut self.quat {
-                    strip.cell(|ui| {
-                        ui.label(&quat_e.0);
-                        let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
-                        if text_input_res.lost_focus()
-                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                        {
-                            *edited_item = Some(RotationRepr::Quaternion);
-                        }
-                        self.edited = text_input_res.changed() || self.edited;
-                    });
-                }
-            });
-    }
-
-    fn angleaxis_view(
-        &mut self,
-        strip_builder: egui_extras::StripBuilder<'_>,
-        edited_item: &mut Option<RotationRepr>,
-    ) {
-        strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                4,
-            )
-            .horizontal(|mut strip| {
-                for angleaxis_e in &mut self.angleaxis {
-                    strip.cell(|ui| {
-                        ui.label(&angleaxis_e.0);
-                        let text_input_res = ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
-                        if text_input_res.lost_focus()
-                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                        {
-                            *edited_item = Some(RotationRepr::AngleAxis);
-                        }
-                        self.edited = text_input_res.changed() || self.edited;
-                    });
-                }
-            });
-    }
-
-    fn rotation_matrix_view(
-        &mut self,
-        strip_builder: egui_extras::StripBuilder<'_>,
-        edited_item: &mut Option<RotationRepr>,
-    ) {
-        strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                3,
-            )
-            .horizontal(|mut strip| {
-                for col in 0..3 {
-                    strip.cell(|ui| {
-                        for row in 0..3 {
-                            let text_input_res = ui.add(egui::TextEdit::singleline(
-                                self.rot_matrix
-                                    .get_mut(3 * col + row)
-                                    .expect("out of bounds"),
-                            ));
-                            if text_input_res.lost_focus()
-                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                            {
-                                *edited_item = Some(RotationRepr::RotationMatrix);
-                            }
-                            self.edited = text_input_res.changed() || self.edited;
-                        }
-                    });
-                }
-            });
-    }
-
-    fn raw_string_access(&mut self, ui: &mut egui::Ui, edited_item: &mut Option<RotationRepr>) {
-        ui.vertical(|ui| {
-            ui.horizontal(|ui| {
-                if ui.button("Import").clicked() {
-                    *edited_item = Some(RotationRepr::RawString);
-                }
-                if ui.button("Export").clicked() && !self.edited {
-                    self.raw_string = rotation_to_string(self.rot, self.raw_string_type);
-                }
-                egui::ComboBox::from_label("type")
-                    .selected_text(format!("{:?}", self.raw_string_type))
-                    .show_ui(ui, |ui| {
-                        for string_type in RotRawStringType::iter() {
-                            ui.selectable_value(
-                                &mut self.raw_string_type,
-                                string_type,
-                                format!("{:?}", string_type),
-                            );
-                        }
-                    })
-            });
-            let text_input_res = ui.add_sized(
-                [ui.available_size_before_wrap().x, 150.0],
-                egui::TextEdit::multiline(&mut self.raw_string).layouter(
-                    &mut |ui, text, _wrap_width| {
-                        ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
-                    },
-                ),
-            );
-            self.edited = text_input_res.changed() || self.edited;
-        });
     }
 }
 
 impl eframe::App for Rotttol {
-    /// Called by the framework to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }
-
-    /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, ui: &mut egui::Ui, _: &mut Frame) {
-        // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
         egui::Panel::top("top_panel").show(ui, |ui| {
-            // The top panel is often a good place for a menu bar:
-
             egui::MenuBar::new().ui(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
@@ -344,15 +92,10 @@ impl eframe::App for Rotttol {
                 egui::widgets::global_theme_preference_buttons(ui);
             });
         });
-
-        let mut rotation_repr = None;
-
+        let mut sync_rot = None;
         egui::CentralPanel::default().show(ui, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading(format!(
-                    "Rotation tool {}",
-                    if self.edited { "(Unsync)" } else { "(Sync)" }
-                ));
+                ui.heading(format!("Rotation tool {}", if self.edited { "(Unsync)" } else { "(Sync)" }));
                 ui.separator();
                 ui.label(egui::RichText::new("Quaternion:").heading());
                 ui.separator();
@@ -360,10 +103,7 @@ impl eframe::App for Rotttol {
                     [ui.available_size_before_wrap().x, 0.0].into(),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        self.quaternion_view(
-                            egui_extras::StripBuilder::new(ui),
-                            &mut rotation_repr,
-                        );
+                        Self::ui_rotation_editor(ui, &mut self.quat, &mut self.edited, &mut sync_rot);
                     },
                 );
                 ui.separator();
@@ -373,7 +113,7 @@ impl eframe::App for Rotttol {
                     [ui.available_size_before_wrap().x, 0.0].into(),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        self.angleaxis_view(egui_extras::StripBuilder::new(ui), &mut rotation_repr);
+                        Self::ui_rotation_editor(ui, &mut self.angle_axis, &mut self.edited, &mut sync_rot);
                     },
                 );
                 ui.separator();
@@ -383,14 +123,17 @@ impl eframe::App for Rotttol {
                     [ui.available_size_before_wrap().x, 0.0].into(),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        self.rotation_matrix_view(
-                            egui_extras::StripBuilder::new(ui),
-                            &mut rotation_repr,
-                        );
+                        Self::ui_rotation_editor(ui, &mut self.rot_matrix, &mut self.edited, &mut sync_rot);
                     },
                 );
                 ui.separator();
-                self.raw_string_access(ui, &mut rotation_repr);
+                ui.allocate_ui_with_layout(
+                    [ui.available_size_before_wrap().x, 0.0].into(),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        Self::ui_rotation_editor(ui, &mut self.raw_string, &mut self.edited, &mut sync_rot);
+                    },
+                );
                 if ui.available_height() > self.footer_height {
                     self.footer_height = ui
                         .with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -412,12 +155,18 @@ impl eframe::App for Rotttol {
                 }
             });
         });
-
-        if let Some(rotation_repr) = rotation_repr
-            && self.update_input(&rotation_repr).is_ok()
-        {
+        if let Some(rot) = sync_rot {
+            self.quat.import(rot);
+            self.angle_axis.import(rot);
+            self.rot_matrix.import(rot);
+            self.raw_string.import(rot);
             self.edited = false;
         }
+    }
+
+    /// Called by the framework to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
     }
 }
 
@@ -427,10 +176,7 @@ fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
         ui.label("Powered by ");
         ui.hyperlink_to("egui", "https://github.com/emilk/egui");
         ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
+        ui.hyperlink_to("eframe", "https://github.com/emilk/egui/tree/master/crates/eframe");
         ui.label(".");
     });
 }

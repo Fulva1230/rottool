@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
+pub mod editor;
 
 pub use app::Rotttol;
 use nalgebra as na;
@@ -14,7 +15,10 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
             0.0,
             egui::TextFormat {
                 background: egui::Color32::DARK_GRAY,
-                font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
+                font_id: egui::FontId {
+                    family: egui::FontFamily::Monospace,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         );
@@ -22,7 +26,10 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
             &text[range.start..range.end],
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
+                font_id: egui::FontId {
+                    family: egui::FontFamily::Monospace,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         );
@@ -33,7 +40,10 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
         0.0,
         egui::TextFormat {
             background: egui::Color32::DARK_GRAY,
-            font_id: egui::FontId {family: egui::FontFamily::Monospace, ..Default::default()},
+            font_id: egui::FontId {
+                family: egui::FontFamily::Monospace,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -41,10 +51,102 @@ fn render_numbers(text: &str) -> egui::text::LayoutJob {
     debug_assert_eq!(rendered, text.len());
     layout_job
 }
-
 fn split_numbers(s: &str) -> impl Iterator<Item = Range<usize>> {
     let re = regex::regex!(r".*?([+-]?(?:\.\d+|\d+(?:\.\d*)?)(?:[Ee][+-]?\d+)?)");
     re.captures_iter(s).map(|m| m.get(1).unwrap().range())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter)]
+enum RotRawStringType {
+    ColumnMajor4x4,
+    RowMajor4x4,
+    ColumnMajor3x3,
+    RowMajor3x3,
+    QuaternionWXYZ,
+    QuaternionXYZW,
+}
+fn rotation_to_string(rot: na::UnitQuaternion<f64>, string_type: RotRawStringType) -> String {
+    match string_type {
+        RotRawStringType::ColumnMajor4x4 => {
+            let transform = na::Isometry3::from_parts(na::Translation3::identity(), rot).to_matrix();
+            transform.column_iter().fold(String::default(), |mut acc, col| {
+                if !acc.is_empty() {
+                    acc.push_str("\n");
+                }
+                let col_str = col.iter().fold(
+                    String::default(),
+                    |col_str, val| {
+                        if col_str.is_empty() { col_str + &format!("{}", val) } else { col_str + &format!(", {}", val) }
+                    },
+                );
+                acc.push_str(&col_str);
+                acc
+            })
+        }
+        RotRawStringType::RowMajor4x4 => {
+            let transform = na::Isometry3::from_parts(na::Translation3::identity(), rot).to_matrix();
+            transform.row_iter().fold(String::default(), |mut acc, row| {
+                if !acc.is_empty() {
+                    acc.push_str("\n");
+                }
+                let row_str = row.iter().fold(
+                    String::default(),
+                    |row_str, val| {
+                        if row_str.is_empty() { row_str + &format!("{}", val) } else { row_str + &format!(", {}", val) }
+                    },
+                );
+                acc.push_str(&row_str);
+                acc
+            })
+        }
+        RotRawStringType::ColumnMajor3x3 => {
+            let rot_matrix = rot.to_rotation_matrix();
+            rot_matrix.matrix().column_iter().fold(String::default(), |mut acc, col| {
+                if !acc.is_empty() {
+                    acc.push_str("\n");
+                }
+                let col_str = col.iter().fold(
+                    String::default(),
+                    |col_str, val| {
+                        if col_str.is_empty() { col_str + &format!("{}", val) } else { col_str + &format!(", {}", val) }
+                    },
+                );
+                acc.push_str(&col_str);
+                acc
+            })
+        }
+        RotRawStringType::RowMajor3x3 => {
+            let rot_matrix = rot.to_rotation_matrix();
+            rot_matrix.matrix().row_iter().fold(String::default(), |mut acc, row| {
+                if !acc.is_empty() {
+                    acc.push_str("\n");
+                }
+                let row_str = row.iter().fold(
+                    String::default(),
+                    |row_str, val| {
+                        if row_str.is_empty() { row_str + &format!("{}", val) } else { row_str + &format!(", {}", val) }
+                    },
+                );
+                acc.push_str(&row_str);
+                acc
+            })
+        }
+        RotRawStringType::QuaternionWXYZ => {
+            format!("{}, {}, {}, {}", rot.w, rot.i, rot.j, rot.k)
+        }
+        RotRawStringType::QuaternionXYZW => {
+            format!("{}, {}, {}, {}", rot.i, rot.j, rot.k, rot.w)
+        }
+    }
+}
+enum RotationEditorResponse {
+    TriggerSync(na::UnitQuaternion<f64>),
+    Edited,
+}
+trait RotationEditor {
+    fn import(&mut self, rot: na::UnitQuaternion<f64>);
+    fn export(&self) -> anyhow::Result<na::UnitQuaternion<f64>>;
+    fn ui(&mut self, ui: &mut egui::Ui, edited: bool) -> Vec<RotationEditorResponse>;
 }
 #[cfg(test)]
 mod tests {
@@ -59,104 +161,5 @@ mod tests {
                 .collect::<Vec<f32>>(),
             vec![1312.3, 413.423, 5234534.0, -2.0, -0.2, 1234.0]
         );
-    }
-}
-
-enum RotationRepr {
-    Quaternion,
-    AngleAxis,
-    RotationMatrix,
-    RawString,
-}
-
-#[derive(
-    Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, strum_macros::EnumIter,
-)]
-enum RotRawStringType {
-    ColumnMajor4x4,
-    RowMajor4x4,
-    ColumnMajor3x3,
-    RowMajor3x3,
-    QuaternionWXYZ,
-    QuaternionXYZW,
-}
-fn rotation_to_string(rot: na::UnitQuaternion<f64>, string_type: RotRawStringType) -> String {
-    match string_type {
-        RotRawStringType::ColumnMajor4x4 => {
-            let transform =
-                na::Isometry3::from_parts(na::Translation3::identity(), rot).to_matrix();
-            transform.column_iter().fold(String::default(), |mut acc, col| {
-                if !acc.is_empty() {
-                    acc.push_str("\n");
-                }
-                let col_str = col.iter().fold(String::default(), |col_str, val| {
-                    if col_str.is_empty() {
-                        col_str + &format!("{}", val)
-                    } else {
-                        col_str + &format!(", {}", val)
-                    }
-                });
-                acc.push_str(&col_str);
-                acc
-            })
-        }
-        RotRawStringType::RowMajor4x4 => {
-            let transform =
-                na::Isometry3::from_parts(na::Translation3::identity(), rot).to_matrix();
-            transform.row_iter().fold(String::default(), |mut acc, row| {
-                if !acc.is_empty() {
-                    acc.push_str("\n");
-                }
-                let row_str = row.iter().fold(String::default(), |row_str, val| {
-                    if row_str.is_empty() {
-                        row_str + &format!("{}", val)
-                    } else {
-                        row_str + &format!(", {}", val)
-                    }
-                });
-                acc.push_str(&row_str);
-                acc
-            })
-        }
-        RotRawStringType::ColumnMajor3x3 => {
-            let rot_matrix = rot.to_rotation_matrix();
-            rot_matrix.matrix().column_iter().fold(String::default(), |mut acc, col| {
-                if !acc.is_empty() {
-                    acc.push_str("\n");
-                }
-                let col_str = col.iter().fold(String::default(), |col_str, val| {
-                    if col_str.is_empty() {
-                        col_str + &format!("{}", val)
-                    } else {
-                        col_str + &format!(", {}", val)
-                    }
-                });
-                acc.push_str(&col_str);
-                acc
-            })
-        }
-        RotRawStringType::RowMajor3x3 => {
-            let rot_matrix = rot.to_rotation_matrix();
-            rot_matrix.matrix().row_iter().fold(String::default(), |mut acc, row| {
-                if !acc.is_empty() {
-                    acc.push_str("\n");
-                }
-                let row_str = row.iter().fold(String::default(), |row_str, val| {
-                    if row_str.is_empty() {
-                        row_str + &format!("{}", val)
-                    } else {
-                        row_str + &format!(", {}", val)
-                    }
-                });
-                acc.push_str(&row_str);
-                acc
-            })
-        }
-        RotRawStringType::QuaternionWXYZ => {
-            format!("{}, {}, {}, {}", rot.w, rot.i, rot.j, rot.k)
-        }
-        RotRawStringType::QuaternionXYZW => {
-            format!("{}, {}, {}, {}", rot.i, rot.j, rot.k, rot.w)
-        }
     }
 }
