@@ -1,4 +1,4 @@
-use crate::{RotationEditor, RotationEditorResponse, editor, rotation_to_string};
+use crate::{RotationEditor, RotationEditorResponse, editor};
 use eframe::Frame;
 use nalgebra as na;
 

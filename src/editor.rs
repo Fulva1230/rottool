@@ -1,4 +1,5 @@
-use super::*;
+use super::{RotRawStringType, RotationEditor, RotationEditorResponse, na, rotation_to_string, split_numbers};
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator as _;
 
@@ -27,33 +28,26 @@ impl RotationEditor for QuaternionEditor {
     }
 
     fn export(&self) -> anyhow::Result<na::UnitQuaternion<f64>> {
-        Ok(na::UnitQuaternion::<f64>::from_quaternion(
-            na::Quaternion::new(
-                self.quat[0].1.parse()?,
-                self.quat[1].1.parse()?,
-                self.quat[2].1.parse()?,
-                self.quat[3].1.parse()?,
-            ),
-        ))
+        Ok(na::UnitQuaternion::<f64>::from_quaternion(na::Quaternion::new(
+            self.quat[0].1.parse()?,
+            self.quat[1].1.parse()?,
+            self.quat[2].1.parse()?,
+            self.quat[3].1.parse()?,
+        )))
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, edited: bool) -> Vec<RotationEditorResponse> {
+    fn ui(&mut self, ui: &mut egui::Ui, _edited: bool) -> Vec<RotationEditorResponse> {
         let mut ret = vec![];
         let strip_builder = egui_extras::StripBuilder::new(ui);
         let mut trigger_sync = false;
         strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                4,
-            )
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
             .horizontal(|mut strip| {
                 for quat_e in &mut self.quat {
                     strip.cell(|ui| {
                         ui.label(&quat_e.0);
                         let text_input_res = ui.add(egui::TextEdit::singleline(&mut quat_e.1));
-                        if text_input_res.lost_focus()
-                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                        {
+                        if text_input_res.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
                             trigger_sync = true;
                         }
                         if text_input_res.changed() {
@@ -91,48 +85,29 @@ impl Default for RotMatrixEditor {
 }
 impl RotationEditor for RotMatrixEditor {
     fn import(&mut self, rot: na::UnitQuaternion<f64>) {
-        rot.to_rotation_matrix()
-            .matrix()
-            .iter()
-            .enumerate()
-            .for_each(|(i, &x)| {
-                *self.rot_matrix.get_mut(i).expect("failed access") = format!("{x:.4}");
-            });
+        rot.to_rotation_matrix().matrix().iter().enumerate().for_each(|(i, &x)| {
+            *self.rot_matrix.get_mut(i).expect("failed access") = format!("{x:.4}");
+        });
     }
     fn export(&self) -> anyhow::Result<na::UnitQuaternion<f64>> {
-        let mut matrix = na::Matrix3::from_iterator(
-            self.rot_matrix
-                .iter()
-                .map(|e| e.parse::<f64>().unwrap_or(0.0)),
-        );
+        let mut matrix = na::Matrix3::from_iterator(self.rot_matrix.iter().map(|e| e.parse::<f64>().unwrap_or(0.0)));
         if matrix.rank(0.0001) < 3 {
             matrix = na::Matrix3::identity();
         }
-        Ok(na::UnitQuaternion::from_rotation_matrix(
-            &na::Rotation3::from_matrix(&matrix),
-        ))
+        Ok(na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&matrix)))
     }
-    fn ui(&mut self, ui: &mut egui::Ui, edited: bool) -> Vec<RotationEditorResponse> {
+    fn ui(&mut self, ui: &mut egui::Ui, _edited: bool) -> Vec<RotationEditorResponse> {
         let mut ret = vec![];
         let strip_builder = egui_extras::StripBuilder::new(ui);
         let mut trigger_sync = false;
         strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                3,
-            )
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 3)
             .horizontal(|mut strip| {
                 for col in 0..3 {
                     strip.cell(|ui| {
                         for row in 0..3 {
-                            let text_input_res = ui.add(egui::TextEdit::singleline(
-                                self.rot_matrix
-                                    .get_mut(3 * col + row)
-                                    .expect("out of bounds"),
-                            ));
-                            if text_input_res.lost_focus()
-                                && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                            {
+                            let text_input_res = ui.add(egui::TextEdit::singleline(self.rot_matrix.get_mut(3 * col + row).expect("out of bounds")));
+                            if text_input_res.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
                                 trigger_sync = true;
                             }
                             if text_input_res.changed() {
@@ -187,23 +162,18 @@ impl RotationEditor for AngleAxisEditor {
         ));
         Ok(na::UnitQuaternion::from_axis_angle(&axis, angle))
     }
-    fn ui(&mut self, ui: &mut egui::Ui, edited: bool) -> Vec<RotationEditorResponse> {
+    fn ui(&mut self, ui: &mut egui::Ui, _edited: bool) -> Vec<RotationEditorResponse> {
         let mut ret = vec![];
         let strip_builder = egui_extras::StripBuilder::new(ui);
         let mut trigger_sync = false;
         strip_builder
-            .sizes(
-                egui_extras::Size::remainder().at_least(60.0).at_most(100.0),
-                4,
-            )
+            .sizes(egui_extras::Size::remainder().at_least(60.0).at_most(100.0), 4)
             .horizontal(|mut strip| {
                 for angleaxis_e in &mut self.angleaxis {
                     strip.cell(|ui| {
                         ui.label(&angleaxis_e.0);
                         let text_input_res = ui.add(egui::TextEdit::singleline(&mut angleaxis_e.1));
-                        if text_input_res.lost_focus()
-                            && ui.input(|input| input.key_pressed(egui::Key::Enter))
-                        {
+                        if text_input_res.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter)) {
                             trigger_sync = true;
                         }
                         if text_input_res.changed() {
@@ -240,7 +210,7 @@ impl RotationEditor for RawStringEditor {
 
     fn export(&self) -> anyhow::Result<na::UnitQuaternion<f64>> {
         let nums = split_numbers(&self.raw_string)
-            .map(|range| self.raw_string[range].parse().unwrap())
+            .map(|range| self.raw_string[range].parse().expect("the captured substring must be parsable"))
             .collect::<Vec<_>>();
         Ok(match self.raw_string_type {
             RotRawStringType::ColumnMajor4x4 => {
@@ -265,36 +235,29 @@ impl RotationEditor for RawStringEditor {
             }
             RotRawStringType::ColumnMajor3x3 => {
                 if nums.len() == 9 {
-                    na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                        &na::Matrix3::from_column_slice(&nums),
-                    ))
+                    na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_column_slice(&nums)))
                 } else {
                     anyhow::bail!("len wrong");
                 }
             }
             RotRawStringType::RowMajor3x3 => {
                 if nums.len() == 9 {
-                    na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(
-                        &na::Matrix3::from_row_slice(&nums),
-                    ))
+                    na::UnitQuaternion::from_rotation_matrix(&na::Rotation3::from_matrix(&na::Matrix3::from_row_slice(&nums)))
                 } else {
                     anyhow::bail!("len wrong");
                 }
             }
             RotRawStringType::QuaternionWXYZ => {
                 if nums.len() == 4 {
-                    na::UnitQuaternion::from_quaternion(na::Quaternion::new(
-                        nums[0], nums[1], nums[2], nums[3],
-                    ))
+                    let acc = |nums: &[f64], idx| -> anyhow::Result<f64> { nums.get(idx).copied().context("access shouldn't failed") };
+                    na::UnitQuaternion::from_quaternion(na::Quaternion::new(acc(&nums, 0)?, acc(&nums, 1)?, acc(&nums, 2)?, acc(&nums, 3)?))
                 } else {
                     anyhow::bail!("len wrong");
                 }
             }
             RotRawStringType::QuaternionXYZW => {
                 if nums.len() == 4 {
-                    na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(
-                        na::Vector4::from_column_slice(&nums),
-                    ))
+                    na::UnitQuaternion::from_quaternion(na::Quaternion::from_vector(na::Vector4::from_column_slice(&nums)))
                 } else {
                     anyhow::bail!("len wrong");
                 }
@@ -316,21 +279,14 @@ impl RotationEditor for RawStringEditor {
                 .selected_text(format!("{:?}", self.raw_string_type))
                 .show_ui(ui, |ui| {
                     for string_type in RotRawStringType::iter() {
-                        ui.selectable_value(
-                            &mut self.raw_string_type,
-                            string_type,
-                            format!("{:?}", string_type),
-                        );
+                        ui.selectable_value(&mut self.raw_string_type, string_type, format!("{string_type:?}"));
                     }
                 })
         });
         let text_input_res = ui.add_sized(
             [ui.available_size_before_wrap().x, 150.0],
-            egui::TextEdit::multiline(&mut self.raw_string).layouter(
-                &mut |ui, text, _wrap_width| {
-                    ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))
-                },
-            ),
+            egui::TextEdit::multiline(&mut self.raw_string)
+                .layouter(&mut |ui, text, _wrap_width| ui.fonts_mut(|f| f.layout_job(crate::render_numbers(text.as_str())))),
         );
         if text_input_res.changed() {
             ret.push(RotationEditorResponse::Edited);
