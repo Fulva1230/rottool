@@ -12,16 +12,11 @@ fn main() -> eframe::Result {
             .with_min_inner_size([300.0, 220.0])
             .with_icon(
                 // NOTE: Adding an icon is optional
-                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
-                    .expect("Failed to load icon"),
+                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..]).expect("Failed to load icon"),
             ),
         ..Default::default()
     };
-    eframe::run_native(
-        "eframe template",
-        native_options,
-        Box::new(|cc| Ok(Box::new(rottool::Rotttol::new(cc)))),
-    )
+    eframe::run_native("eframe template", native_options, Box::new(|cc| Ok(Box::new(rottool::Rotttol::new(cc)))))
 }
 
 // When compiling to web using trunk:
@@ -35,10 +30,7 @@ fn main() {
     let web_options = eframe::WebOptions::default();
 
     wasm_bindgen_futures::spawn_local(async {
-        let document = web_sys::window()
-            .expect("No window")
-            .document()
-            .expect("No document");
+        let document = web_sys::window().expect("No window").document().expect("No document");
 
         let canvas = document
             .get_element_by_id("the_canvas_id")
@@ -47,11 +39,7 @@ fn main() {
             .expect("the_canvas_id was not a HtmlCanvasElement");
 
         let start_result = eframe::WebRunner::new()
-            .start(
-                canvas,
-                web_options,
-                Box::new(|cc| Ok(Box::new(rottool::Rotttol::new(cc)))),
-            )
+            .start(canvas, web_options, Box::new(|cc| Ok(Box::new(rottool::Rotttol::new(cc)))))
             .await;
 
         // Remove the loading text and spinner:
@@ -61,9 +49,7 @@ fn main() {
                     loading_text.remove();
                 }
                 Err(e) => {
-                    loading_text.set_inner_html(
-                        "<p> The app has crashed. See the developer console for details. </p>",
-                    );
+                    loading_text.set_inner_html("<p> The app has crashed. See the developer console for details. </p>");
                     panic!("Failed to start eframe: {e:?}");
                 }
             }
